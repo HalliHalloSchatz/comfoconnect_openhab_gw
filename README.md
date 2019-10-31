@@ -1,3 +1,5 @@
+IN PROGRESS!
+
 This is a mod for the python library that michael arnauts has written on https://github.com/michaelarnauts/comfoconnect/ so that it would work together with any MQTT enabled smart home software (openhab in my case).
 
 You'll need:
