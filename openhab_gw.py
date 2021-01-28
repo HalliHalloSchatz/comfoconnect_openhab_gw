@@ -13,14 +13,14 @@ import getopt
 local_name = 'OpenHAB2 ComfoConnect Gateway'			# Name of the service
 local_uuid = bytes.fromhex('00000000000000000000000000000005')  # Can be what you want, used to differentiate devices (as only 1 simultaneously connected device is allowed)
 
-device_ip = "192.168.2.150"					# Look in your router administration and get the ip of the comfoconnect device and set it as static lease
-device_uuid = bytes.fromhex('0000000000191011800170b3d5426d66') # Get this from using discovery first by running the script with flag: -d <ip-address> and then configure it here
+device_ip = "192.168.1.7"					# Look in your router administration and get the ip of the comfoconnect device and set it as static lease
+device_uuid = bytes.fromhex('00000000001710138001144fd71e1a11') # Get this from using discovery first by running the script with flag: -d <ip-address> and then configure it here
 pin = 1234 							# Set PIN of vent unit !
 
 mqtt_broker = "192.168.1.50"					# Set your MQTT broker here
 mqtt_user = "my_user"						# Set the MQTT user login
 mqtt_passw = "my_pw"						# Set the MQTT user password
-mqtt_topic = "Zehnder/ComfoAirQ450/"				# Set the MQTT root topic
+mqtt_topic = "Zehnder/ComfoAirQ350/"				# Set the MQTT root topic
 
 ## Start logger ########################################################################################################
 
@@ -39,16 +39,16 @@ def pub_on_connect(client, userdata, flags, rc):
     print("publisher connected")
 def pub_on_disconnect(client, userdata, rc):
     print("publisher disconnected, reconnecting...")
-    clientpub.reconnect()
+    #clientpub.reconnect()
 def sub_on_connect(client, userdata, flags, rc):
     print("subscriber connected")
 def sub_on_disconnect(client, userdata, rc):
     print("subscriber disconnected, reconnecting...")
-    client.reconnect()
+    #client.reconnect()
 
 def on_message(client, userdata, message):
     global prevalt
-    #print("message received " ,str(message.payload.decode("utf-8")))
+    print("message received " ,str(message.payload.decode("utf-8")))
     setting = str(message.payload.decode("utf-8"))
     # comfoconnect.cmd_rmi_request(CMD_FAN_MODE_AWAY)  # Go to away mode
     # comfoconnect.cmd_rmi_request(CMD_FAN_MODE_LOW)  # Set fan speed to 1
@@ -145,8 +145,8 @@ def get_status_msg():
          reply = comfoconnect.cmd_rmi_request(CMD_READ_CONFIG)
 
          if previousreply != reply.msg.message[11:58]:
-               #print("READ CONFIG %s" % reply.msg)
-               #print("READ CONFIG %s" % reply.msg.message)
+               print("READ CONFIG %s" % reply.msg)
+               print("READ CONFIG %s" % reply.msg.message)
                previousreply = reply.msg.message[11:58]
 
          if b'\x00' == reply.msg.message[10:11]:
@@ -154,25 +154,25 @@ def get_status_msg():
          else:
                alt = 1
          if b'\x01' == reply.msg.message[57:58]:
-               #print("IS MANUAL")
+               print("IS MANUAL")
                mode="5"
          else:
-               #print("IS AUTOMATIC")
+               print("IS AUTOMATIC")
                if (alt==0):
                      mode=4
                else:
                      mode=41
          if b'\x00' == reply.msg.message[14:15]:
-                #print("SPEED 0")
+               print("SPEED 0")
                speed=0
          elif b'\x01' == reply.msg.message[14:15]:
-               #print("SPEED 1")
+               print("SPEED 1")
                speed=1
          elif b'\x02' == reply.msg.message[14:15]:
-               #print("SPEED 2")
+               print("SPEED 2")
                speed=2
          elif b'\x03' == reply.msg.message[14:15]:
-               #print("SPEED 3")
+               print("SPEED 3")
                speed=3
          if b'\x00' == reply.msg.message[10:11]:
                alt = 0
@@ -180,30 +180,30 @@ def get_status_msg():
                alt = 1
          if (speed != prevspeed) or (mode!= prevmode) or (alt != prevalt):
                print("mode:%s speed:%s alt:%s" % (mode, speed, alt))
-               clientpub.publish(("%sconfig/mode" % mqtt_topic), ("%s" % mode))
-               clientpub.publish(("%sconfig/speed" % mqtt_topic), ("%s" % speed))
+               #clientpub.publish(("%sconfig/mode" % mqtt_topic), ("%s" % mode))
+               #clientpub.publish(("%sconfig/speed" % mqtt_topic), ("%s" % speed))
                prevspeed = speed
                prevmode = mode
                prevalt = alt
 
-         clientpub.publish(("%sconfig/mode" % mqtt_topic), ("%s" % mode))
-         clientpub.publish(("%sconfig/speed" % mqtt_topic), ("%s" % speed))
+         #clientpub.publish(("%sconfig/mode" % mqtt_topic), ("%s" % mode))
+         #clientpub.publish(("%sconfig/speed" % mqtt_topic), ("%s" % speed))
 
-client = mqtt.Client(client_id="S1_%s" % randint(1, 10000), clean_session=False)
-client.on_connect = sub_on_connect
-client.on_disconnect = sub_on_disconnect
-client.username_pw_set(mqtt_user,mqtt_passw)
-client.connect(mqtt_broker)
-client.subscribe("Zehnder/ComfoAirQ450/ExecuteFunction",qos=1)
-client.on_message=on_message #attach function to callback
-client.loop_start()
+#client = mqtt.Client(client_id="S1_%s" % randint(1, 10000), clean_session=False)
+#client.on_connect = sub_on_connect
+#client.on_disconnect = sub_on_disconnect
+#client.username_pw_set(mqtt_user,mqtt_passw)
+#client.connect(mqtt_broker)
+#client.subscribe("Zehnder/ComfoAirQ450/ExecuteFunction",qos=1)
+#client.on_message=on_message #attach function to callback
+#client.loop_start()
 
-clientpub = mqtt.Client(client_id="P1_%s" % randint(1, 10000), clean_session=False)
-clientpub.on_connect = pub_on_connect
-clientpub.on_disconnect = pub_on_disconnect
-clientpub.username_pw_set(mqtt_user,mqtt_passw)
-clientpub.connect(mqtt_broker)
-clientpub.loop_start()
+#clientpub = mqtt.Client(client_id="P1_%s" % randint(1, 10000), clean_session=False)
+#clientpub.on_connect = pub_on_connect
+#clientpub.on_disconnect = pub_on_disconnect
+#clientpub.username_pw_set(mqtt_user,mqtt_passw)
+#clientpub.connect(mqtt_broker)
+#clientpub.loop_start()
 
 def bridge_discovery(ip):
     ## Bridge discovery ################################################################################################
@@ -238,16 +238,18 @@ def callback_sensor(var, value):
     ## Callback sensors ################################################################################################
     if (var == 81):
          num = struct.unpack('<i', bytes.fromhex(value))
-         #print("%d" % num)
+         print("%d" % num)
          value = ("%d" % num)
          now = datetime.datetime.now()
          end = b = now + datetime.timedelta(0,int(value))
-         #print(end.strftime("%d-%m-%Y %H:%M"))
+         print(end.strftime("%d-%m-%Y %H:%M"))
          value = end.strftime("%d-%m-%Y %H:%M")
 
+    if(var in[221,274,275,276]):
+         value=value/10
     #if(var not in [213, 81, 121, 122, 117, 118, 119, 120, 128]):
-    clientpub.publish("%s%s" % (mqtt_topic,var) ,"%s" % value, 0, 1)
-    #print("Sent to MQTT Broker : %s%s = %s" % (mqtt_topic, var, value))
+    #clientpub.publish("%s%s" % (mqtt_topic,var) ,"%s" % value, 0, 1)
+    print("Sent to MQTT Broker : %s%s = %s" % (mqtt_topic, SENSOR(var), value))
 
 def main():
     opts, args = getopt.getopt(sys.argv[1:],"d:",["discovery"])
@@ -271,34 +273,34 @@ def main():
 
     ## Register sensors ################################################################################################
 
-    comfoconnect.register_sensor(SENSOR_FAN_NEXT_CHANGE)  # General: Countdown until next fan speed change
-    comfoconnect.register_sensor(SENSOR_FAN_SUPPLY_SPEED)  # Fans: Supply fan speed
-    comfoconnect.register_sensor(SENSOR_FAN_EXHAUST_SPEED)  # Fans: Exhaust fan speed
-    comfoconnect.register_sensor(SENSOR_POWER_TOTAL_YEAR)  # Power Consumption: Total year-to-date
-    comfoconnect.register_sensor(SENSOR_AVOIDED_HEATING_TOTAL_YEAR)  # Avoided Heating: Avoided year-to-date
-    comfoconnect.register_sensor(SENSOR_FAN_SPEED_MODE)  # Fans: Fan speed setting
-    comfoconnect.register_sensor(SENSOR_FAN_SUPPLY_DUTY)  # Fans: Supply fan duty
-    comfoconnect.register_sensor(SENSOR_FAN_EXHAUST_DUTY)  # Fans: Exhaust fan duty
-    comfoconnect.register_sensor(SENSOR_FAN_SUPPLY_FLOW)  # Fans: Supply fan flow
-    comfoconnect.register_sensor(SENSOR_FAN_EXHAUST_FLOW)  # Fans: Exhaust fan flow
-    comfoconnect.register_sensor(SENSOR_POWER_CURRENT)  # Power Consumption: Current Ventilation
-    comfoconnect.register_sensor(SENSOR_POWER_TOTAL)  # Power Consumption: Total from start
-    comfoconnect.register_sensor(SENSOR_DAYS_TO_REPLACE_FILTER)  # Days left before filters must be replaced
-    comfoconnect.register_sensor(SENSOR_AVOIDED_HEATING_CURRENT)  # Avoided Heating: Avoided actual
-    comfoconnect.register_sensor(SENSOR_AVOIDED_HEATING_TOTAL)  # Avoided Heating: Avoided total
-    comfoconnect.register_sensor(SENSOR_TEMPERATURE_SUPPLY)  # Temperature & Humidity: Supply Air (temperature)
-    comfoconnect.register_sensor(SENSOR_TEMPERATURE_EXTRACT)  # Temperature & Humidity: Extract Air (temperature)
-    comfoconnect.register_sensor(SENSOR_TEMPERATURE_EXHAUST)  # Temperature & Humidity: Exhaust Air (temperature)
-    comfoconnect.register_sensor(SENSOR_TEMPERATURE_OUTDOOR)  # Temperature & Humidity: Outdoor Air (temperature)
-    comfoconnect.register_sensor(SENSOR_HUMIDITY_SUPPLY)  # Temperature & Humidity: Supply Air (temperature)
-    comfoconnect.register_sensor(SENSOR_HUMIDITY_EXTRACT)  # Temperature & Humidity: Extract Air (temperature)
-    comfoconnect.register_sensor(SENSOR_HUMIDITY_EXHAUST)  # Temperature & Humidity: Exhaust Air (temperature)
-    comfoconnect.register_sensor(SENSOR_HUMIDITY_OUTDOOR)  # Temperature & Humidity: Outdoor Air (temperature)
-    comfoconnect.register_sensor(SENSOR_BYPASS_STATE)  # Bypass state
-    comfoconnect.register_sensor(SENSOR_RUNMODE_SUPPLY_BALANCE)
-    comfoconnect.register_sensor(SENSOR_AUTO_STATE)
-#    comfoconnect.register_sensor(SENSOR_AWAY_STATE)
-#    comfoconnect.register_sensor(SENSOR_TEMP_PROFILE)
+    comfoconnect.register_sensor(SENSOR.FAN_NEXT_CHANGE)  # General: Countdown until next fan speed change
+    comfoconnect.register_sensor(SENSOR.FAN_SUPPLY_SPEED)  # Fans: Supply fan speed
+    comfoconnect.register_sensor(SENSOR.FAN_EXHAUST_SPEED)  # Fans: Exhaust fan speed
+    comfoconnect.register_sensor(SENSOR.POWER_TOTAL_YEAR)  # Power Consumption: Total year-to-date
+    comfoconnect.register_sensor(SENSOR.AVOIDED_HEATING_TOTAL_YEAR)  # Avoided Heating: Avoided year-to-date
+    comfoconnect.register_sensor(SENSOR.FAN_SPEED_MODE)  # Fans: Fan speed setting
+    comfoconnect.register_sensor(SENSOR.FAN_SUPPLY_DUTY)  # Fans: Supply fan duty
+    comfoconnect.register_sensor(SENSOR.FAN_EXHAUST_DUTY)  # Fans: Exhaust fan duty
+    comfoconnect.register_sensor(SENSOR.FAN_SUPPLY_FLOW)  # Fans: Supply fan flow
+    comfoconnect.register_sensor(SENSOR.FAN_EXHAUST_FLOW)  # Fans: Exhaust fan flow
+    comfoconnect.register_sensor(SENSOR.POWER_CURRENT)  # Power Consumption: Current Ventilation
+    comfoconnect.register_sensor(SENSOR.POWER_TOTAL)  # Power Consumption: Total from start
+    comfoconnect.register_sensor(SENSOR.DAYS_TO_REPLACE_FILTER)  # Days left before filters must be replaced
+    comfoconnect.register_sensor(SENSOR.AVOIDED_HEATING_CURRENT)  # Avoided Heating: Avoided actual
+    comfoconnect.register_sensor(SENSOR.AVOIDED_HEATING_TOTAL)  # Avoided Heating: Avoided total
+    comfoconnect.register_sensor(SENSOR.TEMPERATURE_SUPPLY)  # Temperature & Humidity: Supply Air (temperature)
+    comfoconnect.register_sensor(SENSOR.TEMPERATURE_EXTRACT)  # Temperature & Humidity: Extract Air (temperature)
+    comfoconnect.register_sensor(SENSOR.TEMPERATURE_EXHAUST)  # Temperature & Humidity: Exhaust Air (temperature)
+    comfoconnect.register_sensor(SENSOR.TEMPERATURE_OUTDOOR)  # Temperature & Humidity: Outdoor Air (temperature)
+    comfoconnect.register_sensor(SENSOR.HUMIDITY_SUPPLY)  # Temperature & Humidity: Supply Air (temperature)
+    comfoconnect.register_sensor(SENSOR.HUMIDITY_EXTRACT)  # Temperature & Humidity: Extract Air (temperature)
+    comfoconnect.register_sensor(SENSOR.HUMIDITY_EXHAUST)  # Temperature & Humidity: Exhaust Air (temperature)
+    comfoconnect.register_sensor(SENSOR.HUMIDITY_OUTDOOR)  # Temperature & Humidity: Outdoor Air (temperature)
+    comfoconnect.register_sensor(SENSOR.BYPASS_STATE)  # Bypass state
+    comfoconnect.register_sensor(SENSOR.RUNMODE_SUPPLY_BALANCE)
+    comfoconnect.register_sensor(SENSOR.AUTO_STATE)
+#    comfoconnect.register_sensor(SENSOR.AWAY_STATE)
+#    comfoconnect.register_sensor(SENSOR.TEMP_PROFILE)
 #    comfoconnect.register_sensor(SETTING_BYPASS)
 #    comfoconnect.register_sensor(SETTING_HEATING_SEASON)
 #    comfoconnect.register_sensor(SETTING_RF_PAIRING)
@@ -339,8 +341,8 @@ def main():
 
     ## Closing the session #############################################################################################
 
-    client.loop_stop()
-    clientpub.loop_stop()
+    #client.loop_stop()
+    #clientpub.loop_stop()
     comfoconnect.disconnect()
 
 
