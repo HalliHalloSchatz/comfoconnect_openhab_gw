@@ -1,3 +1,4 @@
+import logging
 import queue
 import struct
 import threading
@@ -14,10 +15,26 @@ DEFAULT_LOCAL_UUID = bytes.fromhex('00000000000000000000000000001337')
 DEFAULT_LOCAL_DEVICENAME = 'pycomfoconnect'
 DEFAULT_PIN = 0
 
+_LOGGER = logging.getLogger('comfoconnect')
+
 # Sensor variable size
 RPDO_TYPE_MAP = {
+    16: 1,
+    33: 1,
+    37: 1,
+    49: 1,
+    53: 1,
+    56: 1,
     65: 1,
+    66: 1,
+    67: 1,
+    70: 1,
+    71: 1,
     81: 3,
+    82: 3,
+    85: 3,
+    86: 3,
+    87: 3,
     117: 1,
     118: 1,
     119: 2,
@@ -27,12 +44,29 @@ RPDO_TYPE_MAP = {
     128: 2,
     129: 2,
     130: 2,
+    144: 2,
+    145: 2,
+    146: 2,
+    176: 1,
     192: 2,
+    208: 1,
+    209: 6,
+    210: 0,
+    211: 0,
+    212: 6,
     213: 2,
     214: 2,
     215: 2,
+    216: 2,
+    217: 2,
+    218: 2,
+    219: 2,
     221: 6,
+    224: 1,
+    225: 1,
+    226: 2,
     227: 1,
+    228: 1,
     274: 6,
     275: 6,
     276: 6,
@@ -40,7 +74,26 @@ RPDO_TYPE_MAP = {
     291: 1,
     292: 1,
     294: 1,
+    321: 2,
+    325: 2,
+    337: 3,
+    338: 3,
+    341: 3,
+    369: 1,
+    370: 1,
+    371: 1,
+    372: 1,
+    384: 6,
+    386: 0,
+    400: 6,
+    401: 1,
+    402: 0,
+    416: 6,
+    417: 6,
+    418: 1,
+    419: 0,
 }
+
 
 class ComfoConnect(object):
     """Implements the commands to communicate with the ComfoConnect ventilation unit."""
@@ -77,9 +130,12 @@ class ComfoConnect(object):
 
         except PyComfoConnectNotAllowed:
             raise Exception('Could not connect to the bridge since the PIN seems to be invalid.')
+
         except PyComfoConnectOtherSession:
             raise Exception('Could not connect to the bridge since there is already an open session.')
-        except:
+
+        except Exception as exc:
+            _LOGGER.error(exc)
             raise Exception('Could not connect to the bridge.')
 
         # Set the stopping flag
@@ -110,23 +166,41 @@ class ComfoConnect(object):
 
         return self._bridge.is_connected()
 
-    def register_sensor(self, sensor_id: int):
+    def register_sensor(self, sensor_id: int, sensor_type: int = None):
         """Register a sensor on the bridge and keep it in memory that we are registered to this sensor."""
 
-        # Register in memory
-        self.sensors[sensor_id] = True
+        if not sensor_type:
+            sensor_type = RPDO_TYPE_MAP.get(sensor_id)
+
+        if sensor_type is None:
+            raise Exception("Registering sensor %d with unknown type" % sensor_id)
 
         # Register on bridge
-        self.cmd_rpdo_request(sensor_id)
+        try:
+            reply = self.cmd_rpdo_request(sensor_id, sensor_type)
 
-    def unregister_sensor(self, sensor_id: int):
+        except PyComfoConnectNotAllowed:
+            return None
+
+        # Register in memory
+        self.sensors[sensor_id] = sensor_type
+
+        return reply
+
+    def unregister_sensor(self, sensor_id: int, sensor_type: int = None):
         """Register a sensor on the bridge and keep it in memory that we are registered to this sensor."""
+
+        if sensor_type is None:
+            sensor_type = RPDO_TYPE_MAP.get(sensor_id)
+
+        if sensor_type is None:
+            raise Exception("Unregistering sensor %d with unknown type" % sensor_id)
 
         # Unregister in memory
         self.sensors.pop(sensor_id, None)
 
         # Unregister on bridge
-        self.cmd_rpdo_request(sensor_id, timeout=0)
+        self.cmd_rpdo_request(sensor_id, sensor_type, timeout=0)
 
     def _command(self, command, params=None, use_queue=True):
         """Sends a command and wait for a response if the request is known to return a result."""
@@ -236,19 +310,20 @@ class ComfoConnect(object):
 
                 except PyComfoConnectOtherSession:
                     self._bridge.disconnect()
-                    print('Could not connect to the bridge since there is already an open session.')
+                    _LOGGER.error('Could not connect to the bridge since there is already an open session.')
                     continue
 
-                except Exception:
+                except Exception as exc:
+                    _LOGGER.error(exc)
                     raise Exception('Could not connect to the bridge.')
 
             # Start background thread
             self._message_thread = threading.Thread(target=self._message_thread_loop)
             self._message_thread.start()
 
-            # Reregister for sensor updates
+            # Re-register for sensor updates
             for sensor_id in self.sensors:
-                self.cmd_rpdo_request(sensor_id)
+                self.cmd_rpdo_request(sensor_id, self.sensors[sensor_id])
 
             # Send the event that we are ready
             self._connected.set()
@@ -303,8 +378,9 @@ class ComfoConnect(object):
                 # Read a message from the bridge.
                 message = self._bridge.read_message()
 
-            except BrokenPipeError:
+            except BrokenPipeError as exc:
                 # Close this thread. The connection_thread will restart us.
+                _LOGGER.warning('THe connection was broken. We will try to reconnect later.')
                 return
 
             if message:
@@ -312,18 +388,22 @@ class ComfoConnect(object):
                     self._handle_rpdo_notification(message)
 
                 elif message.cmd.type == GatewayOperation.GatewayNotificationType:
+                    _LOGGER.info('Unhandled GatewayNotificationType')
                     # TODO: We should probably handle these somehow
                     pass
 
                 elif message.cmd.type == GatewayOperation.CnNodeNotificationType:
+                    _LOGGER.info('Unhandled CnNodeNotificationType')
                     # TODO: We should probably handle these somehow
                     pass
 
                 elif message.cmd.type == GatewayOperation.CnAlarmNotificationType:
+                    _LOGGER.info('Unhandled CnAlarmNotificationType')
                     # TODO: We should probably handle these somehow
                     pass
 
                 elif message.cmd.type == GatewayOperation.CloseSessionRequestType:
+                    _LOGGER.info('The Bridge has asked us to close the connection. We will try to reconnect later.')
                     # Close this thread. The connection_thread will restart us.
                     return
 
@@ -461,23 +541,22 @@ class ComfoConnect(object):
             },
             use_queue=use_queue
         )
-        return reply
-        #return True
+        return True
 
-    def cmd_rpdo_request(self, pdid: int, type: int = None, zone: int = 1, timeout=None, use_queue: bool = True):
+    def cmd_rpdo_request(self, pdid: int, type: int = 1, zone: int = 1, timeout=None, use_queue: bool = True):
         """Register a RPDO request."""
 
         reply = self._command(
             CnRpdoRequest,
             {
                 'pdid': pdid,
-                'type': type or RPDO_TYPE_MAP.get(pdid) or 1,
+                'type': type,
                 'zone': zone or 1,
                 'timeout': timeout
             },
             use_queue=use_queue
         )
-        return True
+        return reply
 
     def cmd_keepalive(self, use_queue: bool = True):
         """Sends a keepalive."""
