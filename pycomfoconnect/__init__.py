@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 PyComfoConnect: Manage your Zehnder ComfoConnect Q350/Q450/Q650 ventilation unit
 """
